@@ -1,28 +1,37 @@
 "use client";
-import { ReactNode, useState } from "react";
-import { base } from "wagmi/chains";
+import { ReactNode, useState, useEffect } from "react";
+import { base, baseSepolia } from "wagmi/chains";
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import { SafeArea } from "@coinbase/onchainkit/minikit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider, createConfig, http, cookieStorage, createStorage } from "wagmi";
+import { WagmiProvider, createConfig, http } from "wagmi";
 import "@coinbase/onchainkit/styles.css";
 
-function getWagmiConfig() {
+// Only create config on client side
+const getWagmiConfig = () => {
   return createConfig({
-    chains: [base],
+    chains: [base, baseSepolia],
     transports: {
       [base.id]: http(),
+      [baseSepolia.id]: http(),
     },
     ssr: true,
-    storage: createStorage({
-      storage: cookieStorage,
-    }),
   });
-}
+};
 
 export function RootProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   const [wagmiConfig] = useState(() => getWagmiConfig());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Don't render anything on server
+  if (!mounted) {
+    return <div style={{ minHeight: '100vh' }}>{children}</div>;
+  }
 
   return (
     <WagmiProvider config={wagmiConfig}>

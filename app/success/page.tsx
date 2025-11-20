@@ -1,11 +1,33 @@
 "use client";
 
+import { useState, useEffect } from 'react';
 import { useComposeCast } from '@coinbase/onchainkit/minikit';
 import { minikitConfig } from "../../minikit.config";
 import styles from "./page.module.css";
 
 export default function Success() {
+  const [mounted, setMounted] = useState(false);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.content}>
+          <div className={styles.successMessage}>
+            <h1 className={styles.title}>Loading...</h1>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <MountedSuccess />;
+}
+
+function MountedSuccess() {
   const { composeCastAsync } = useComposeCast();
   
   const handleShare = async () => {

@@ -1,0 +1,274 @@
+# Chainlink VRF v2.5 Integration Summary
+
+## What Was Implemented
+
+### ✅ Smart Contract Upgrades
+
+**File: `src/Basesweeper.sol`**
+
+**Major Changes:**
+1. **Chainlink VRF v2.5 Integration**
+   - Inherits from `VRFConsumerBaseV2Plus`
+   - Imports `VRFV2PlusClient` library
+   - Configured for Base Sepolia testnet
+
+2. **Async Architecture**
+   - Old: Instant winner determination using `keccak256`
+   - New: Request → Wait → Callback pattern
+   - `click()` now requests randomness
+   - `fulfillRandomWords()` callback determines winner
+
+3. **Pending State Management**
+   - New `PendingClick` struct tracks in-flight requests
+   - Maps `requestId` to click details
+   - Prevents double-fulfillment
+
+4. **Increased Fee**
+   - Old: 0.0008 ETH
+   - New: 0.001 ETH (covers game + VRF costs)
+
+5. **Native ETH Payment**
+   - VRF requests paid with Base ETH
+   - Set `nativePayment: true` for seamless UX
+   - No LINK tokens required for users
+
+**New Functions:**
+- `getPendingClick(uint256 requestId)`: View pending VRF request details
+- `fulfillRandomWords(uint256 requestId, uint256[] randomWords)`: VRF callback
+
+**New Events:**
+- `ClickPending`: Emitted when VRF request is made
+- Updated `GameWon` and `TileClicked`: Emitted after VRF response
+
+### ✅ Deployment Infrastructure
+
+**File: `script/Deploy.s.sol`**
+
+**Changes:**
+1. Updated constructor parameters (VRF coordinator + subscription ID)
+2. Added deployment validation output
+3. Includes post-deployment instructions
+4. Uses Base Sepolia VRF coordinator address
+
+**File: `env_foundry`**
+
+**Added:**
+- `VRF_SUBSCRIPTION_ID` configuration
+- Comments explaining setup process
+
+### ✅ Configuration
+
+**File: `foundry.toml`**
+
+**Added:**
+- Remapping for Chainlink contracts: `@chainlink/contracts/=lib/chainlink-brownie-contracts/contracts/`
+
+### ✅ Documentation
+
+**File: `DEPLOYMENT.md`**
+- Step-by-step VRF subscription creation
+- Funding instructions
+- Contract deployment guide
+- Testing commands
+- Troubleshooting section
+
+**File: `CLAUDE.md`**
+- Updated architecture section with VRF details
+- Added VRF configuration parameters
+- Updated transaction flow documentation
+- Added deployment steps
+
+## Security Improvements
+
+### Before (Vulnerable)
+```solidity
+// Anyone could calculate this!
+uint256 winningTile = uint256(keccak256(abi.encodePacked(seed, gameId))) % 256;
+```
+
+**Problems:**
+- ❌ `seed` readable from storage
+- ❌ `gameId` is public
+- ❌ Miners could manipulate
+- ❌ Predictable outcome
+
+### After (Secure)
+```solidity
+// VRF request in click()
+uint256 requestId = s_vrfCoordinator.requestRandomWords(...);
+
+// VRF callback
+uint256 winningTile = randomWords[0] % 256;
+```
+
+**Benefits:**
+- ✅ Cryptographically secure randomness
+- ✅ Verifiable onchain
+- ✅ Cannot be manipulated
+- ✅ Provably fair
+
+## User Experience
+
+### Game Flow
+
+**Old (Instant):**
+1. Click tile → Pay 0.0008 ETH
+2. Transaction confirms
+3. Immediately see win/loss
+
+**New (Async with VRF):**
+1. Click tile → Pay 0.001 ETH
+2. Transaction confirms
+3. **Wait 2-5 seconds** (pending state shown)
+4. VRF responds
+5. See win/loss result
+
+### Visual Indicators Needed (Frontend)
+
+- ⏳ Pending tile animation
+- ⏱️ "Waiting for result..." message
+- ✅ Win animation
+- ❌ Loss animation
+
+## Cost Analysis
+
+### Per Click
+
+**User Pays:**
+- 0.001 ETH (game fee)
+
+**Subscription Pays:**
+- ~0.0001-0.0003 ETH per VRF request
+- Depends on:
+  - Base gas prices
+  - Callback complexity
+  - Network congestion
+
+### Subscription Funding
+
+**Recommended:**
+- Initial: 0.1 ETH
+- Covers: ~300-1000 requests
+- Refill when: < 0.01 ETH
+
+## Next Steps (TO-DO)
+
+### 1. Create VRF Subscription
+- [ ] Visit https://vrf.chain.link
+- [ ] Connect wallet (Base Sepolia)
+- [ ] Click "Create Subscription"
+- [ ] Save subscription ID
+- [ ] Fund with 0.1 ETH
+
+### 2. Deploy Contract
+- [ ] Add subscription ID to `env_foundry`
+- [ ] Run deployment script
+- [ ] Save deployed contract address
+- [ ] Add contract as consumer on vrf.chain.link
+
+### 3. Update Frontend
+- [ ] Update contract address in `contracts/abi.ts`
+- [ ] Regenerate ABI from `out/` directory
+- [ ] Add new events to ABI:
+  - `ClickPending`
+- [ ] Add new function to ABI:
+  - `getPendingClick`
+- [ ] Update `useBasesweeper` hook:
+  - Watch for `ClickPending` events
+  - Track pending requests
+  - Show loading states
+- [ ] Update `Grid.tsx`:
+  - Show pending tile animation
+  - Disable clicking during pending
+  - Display "Waiting for VRF..." message
+
+### 4. Testing
+- [ ] Test on Base Sepolia
+- [ ] Verify VRF requests fulfill
+- [ ] Check costs per request
+- [ ] Test multiple simultaneous clicks
+- [ ] Test win scenario
+- [ ] Test lose scenario
+- [ ] Monitor subscription balance
+
+### 5. Optimization (Optional)
+- [ ] Fine-tune callback gas limit
+- [ ] Consider batching if needed
+- [ ] Add admin functions:
+  - Check subscription balance
+  - Pause/unpause game
+  - Emergency withdraw
+
+## Configuration Reference
+
+### Base Sepolia VRF v2.5
+
+```solidity
+VRF Coordinator: 0x5CE8D5A2BC84beb22a398CCA51996F7930313D61
+Key Hash: 0x9e9e46732b32662b9adc6f3abdf6c5e926a666d174a522422dde4f7ed49f6a21
+Callback Gas Limit: 200,000
+Request Confirmations: 3
+Payment: Native ETH
+```
+
+### Frontend Event Watching
+
+```typescript
+// Watch for pending clicks
+useWatchContractEvent({
+  eventName: 'ClickPending',
+  onLogs(logs) {
+    // Show pending state
+  }
+});
+
+// Watch for fulfillment
+useWatchContractEvent({
+  eventName: 'GameWon',
+  onLogs(logs) {
+    // Show win animation
+  }
+});
+
+useWatchContractEvent({
+  eventName: 'TileClicked',
+  onLogs(logs) {
+    // Update grid
+  }
+});
+```
+
+## Important Notes
+
+### Security
+- ✅ VRF makes the game **provably fair**
+- ✅ No one can predict the winning tile
+- ✅ Miners/validators cannot manipulate
+- ⚠️ Keep subscription funded or requests fail
+
+### Testing
+- ⚠️ Test extensively on Base Sepolia before mainnet
+- ⚠️ Monitor VRF costs during testing
+- ⚠️ Verify subscription has sufficient balance
+
+### Mainnet Deployment
+When ready for mainnet:
+1. Create new subscription on Base mainnet
+2. Fund with real ETH
+3. Update contract configuration for mainnet coordinator
+4. Deploy to Base mainnet
+5. Update frontend with new contract address
+
+## Resources
+
+- **VRF Subscription Manager**: https://vrf.chain.link
+- **Chainlink VRF Docs**: https://docs.chain.link/vrf/v2-5
+- **Base Sepolia Faucet**: https://faucets.chain.link/base-sepolia
+- **Base Sepolia Explorer**: https://sepolia.basescan.org
+
+## Questions?
+
+Refer to:
+- `DEPLOYMENT.md` for deployment steps
+- `CLAUDE.md` for architecture details
+- Chainlink docs for VRF specifics
