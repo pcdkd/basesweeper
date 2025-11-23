@@ -14,7 +14,7 @@ import { BASESWEEPER_ABI, BASESWEEPER_ADDRESS } from '../contracts/abi';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!; // Use service key for write access
 const RPC_URL = process.env.PONDER_RPC_URL_84532 || 'https://sepolia.base.org';
-const START_BLOCK = 34005195n; // Deployment block
+const START_BLOCK = 34047281n; // Deployment block
 
 // Initialize clients
 const publicClient = createPublicClient({
