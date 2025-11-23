@@ -26,8 +26,8 @@ export default function Grid() {
                 Pool: {pool ? (Number(pool) / 1e18).toFixed(4) : '0.0000'} ETH
             </div>
 
-            <div className="grid grid-cols-16 gap-1 bg-gray-200 p-2 rounded-lg" style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}>
-                {Array.from({ length: 256 }).map((_, i) => {
+            <div className="grid grid-cols-3 gap-1 bg-gray-200 p-2 rounded-lg" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+                {Array.from({ length: 9 }).map((_, i) => {
                     const clicked = isClicked(i);
                     return (
                         <button
@@ -35,7 +35,7 @@ export default function Grid() {
                             onClick={() => handleTileClick(i)}
                             disabled={clicked || !isActive || isPending}
                             className={`
-                w-6 h-6 sm:w-8 sm:h-8 rounded-sm transition-colors duration-200
+                w-16 h-16 sm:w-20 sm:h-20 rounded-sm transition-colors duration-200
                 ${clicked
                                     ? 'bg-gray-400 cursor-not-allowed'
                                     : 'bg-[#0052FF] hover:bg-[#0040DD] active:bg-[#0030BB]'}

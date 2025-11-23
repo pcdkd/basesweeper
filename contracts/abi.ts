@@ -32,6 +32,19 @@ export const BASESWEEPER_ABI = [
   },
   {
     "type": "function",
+    "name": "GRID_SIZE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "REVEAL_REWARD",
     "inputs": [],
     "outputs": [
@@ -310,6 +323,31 @@ export const BASESWEEPER_ABI = [
   },
   {
     "type": "event",
+    "name": "ClickRefunded",
+    "inputs": [
+      {
+        "name": "gameId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "tileIndex",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "player",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "GameStarted",
     "inputs": [
       {
@@ -332,10 +370,22 @@ export const BASESWEEPER_ABI = [
         "internalType": "uint256"
       },
       {
+        "name": "requestId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
         "name": "winner",
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "tileIndex",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       },
       {
         "name": "payout",
@@ -357,7 +407,7 @@ export const BASESWEEPER_ABI = [
         "internalType": "uint256"
       },
       {
-        "name": "tileIndex",
+        "name": "requestId",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -367,10 +417,22 @@ export const BASESWEEPER_ABI = [
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "tileIndex",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newPool",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
   }
 ] as const;
 
-export const BASESWEEPER_ADDRESS = "0x5AC802CF0aEc6ff32720fE321ab0ce45cd85D0b4" as const;
+export const BASESWEEPER_ADDRESS = "0x9d5C13f2B13a13773607D4F96eb1915A87777309" as const;

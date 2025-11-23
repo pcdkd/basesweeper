@@ -16,6 +16,9 @@ The game uses a 16x16 grid (256 tiles) where players pay a fee to click tiles. O
 ### Smart Contract Development (Foundry)
 
 ```bash
+# Initialize submodules (required after cloning)
+git submodule update --init --recursive
+
 # Build contracts
 forge build
 
@@ -35,7 +38,7 @@ forge build --extra-output-files abi
 # Local development node
 anvil
 
-# Cast commands for reading contract state
+# Cast commands for reading contract state (CONTRACT_ADDRESS is in contracts/abi.ts)
 cast call <CONTRACT_ADDRESS> "gameId()" --rpc-url <RPC_URL>
 cast call <CONTRACT_ADDRESS> "getGameState(uint256)" <GAME_ID> --rpc-url <RPC_URL>
 cast call <CONTRACT_ADDRESS> "FEE()" --rpc-url <RPC_URL>
@@ -252,4 +255,12 @@ The ABI in `contracts/abi.ts` must be **manually synced** after any contract cha
 ### Testing
 - Base Sepolia is the recommended testnet for deployment
 - No tests currently in `/test` directory - consider adding before mainnet
-- Test VRF integration thoroughly on testnet before mainnet deployment
+- Test blockhash randomness thoroughly on testnet before mainnet deployment
+
+### Event Indexing & History
+- History component is currently a placeholder
+- See `HISTORY_IMPLEMENTATION_PLAN.md` for detailed implementation plan
+- Recommended approach: Ponder (TypeScript-native indexer) + Neon DB (serverless Postgres)
+- Estimated implementation time: ~9 hours
+- Events to index: `GameWon`, `TileClicked`, `ClickPending`, `ClickRefunded`, `GameStarted`
+- Free tier available: Neon DB (0.5GB) + Railway ($5 credit/month)

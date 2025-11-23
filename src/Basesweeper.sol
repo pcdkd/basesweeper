@@ -12,6 +12,7 @@ pragma solidity ^0.8.20;
 contract Basesweeper {
     // Game Configuration
     uint256 public gameId;
+    uint256 public constant GRID_SIZE = 9; // 3x3 for testing, 256 (16x16) for production
     uint256 public constant FEE = 0.0008 ether;
     uint256 public constant BLOCK_DELAY = 3; // Wait 3 blocks (~36 seconds on Base)
     uint256 public constant REVEAL_REWARD = 0.00001 ether; // Small incentive for anyone to reveal
@@ -45,8 +46,9 @@ contract Basesweeper {
         uint256 tileIndex,
         uint256 targetBlock
     );
-    event GameWon(uint256 indexed gameId, address indexed winner, uint256 payout);
-    event TileClicked(uint256 indexed gameId, uint256 tileIndex, address indexed player);
+    event GameWon(uint256 indexed gameId, uint256 requestId, address indexed winner, uint256 tileIndex, uint256 payout);
+    event TileClicked(uint256 indexed gameId, uint256 requestId, address indexed player, uint256 tileIndex, uint256 newPool);
+    event ClickRefunded(uint256 indexed gameId, uint256 tileIndex, address indexed player);
 
     constructor() {
         gameId = 1;
@@ -61,7 +63,7 @@ contract Basesweeper {
      */
     function click(uint256 tileIndex) external payable {
         require(msg.value >= FEE, "Insufficient fee");
-        require(tileIndex < 256, "Invalid tile index");
+        require(tileIndex < GRID_SIZE, "Invalid tile index");
 
         Game storage currentGame = games[gameId];
         require(currentGame.active, "Game not active");
@@ -69,8 +71,10 @@ contract Basesweeper {
         // Check if tile was already clicked
         require((currentGame.clickedMask >> tileIndex) & 1 == 0, "Tile already clicked");
 
-        // Add fee to pool immediately
-        currentGame.pool += msg.value;
+        // Mark tile as clicked immediately to prevent duplicate clicks
+        currentGame.clickedMask |= (uint256(1) << tileIndex);
+
+        // Fee held in escrow until reveal (not added to pool yet)
 
         // Create pending click for future block
         uint256 requestId = nextRequestId++;
@@ -100,23 +104,34 @@ contract Basesweeper {
         require(block.number >= pending.targetBlock, "Too early to reveal");
         require(block.number <= pending.targetBlock + 256, "Blockhash expired");
 
+        Game storage currentGame = games[pending.gameId];
+
+        // Mark as fulfilled first to prevent reentrancy
+        pending.fulfilled = true;
+
+        // If game already ended (someone else won), refund the player
+        if (!currentGame.active) {
+            emit ClickRefunded(pending.gameId, pending.tileIndex, pending.player);
+
+            (bool sent, ) = pending.player.call{value: FEE}("");
+            require(sent, "Refund failed");
+            return;
+        }
+
         // Get blockhash for randomness
         uint256 randomSeed = uint256(blockhash(pending.targetBlock));
         require(randomSeed != 0, "Blockhash not available");
 
-        pending.fulfilled = true;
-
         // Determine winning tile from blockhash
-        uint256 winningTile = randomSeed % 256;
-
-        Game storage currentGame = games[pending.gameId];
+        uint256 winningTile = randomSeed % GRID_SIZE;
 
         if (pending.tileIndex == winningTile) {
             // WINNER - Player found the winning tile!
             currentGame.winner = pending.player;
             currentGame.active = false;
 
-            uint256 payout = currentGame.pool;
+            // Winner gets pool + their own fee, minus reveal reward
+            uint256 payout = currentGame.pool + FEE;
             uint256 rewardAmount = REVEAL_REWARD;
 
             // Ensure we have enough for reward
@@ -126,7 +141,7 @@ contract Basesweeper {
                 rewardAmount = 0;
             }
 
-            emit GameWon(pending.gameId, pending.player, payout);
+            emit GameWon(pending.gameId, requestId, pending.player, pending.tileIndex, payout);
 
             // Transfer pool to winner
             (bool sentToWinner, ) = pending.player.call{value: payout}("");
@@ -143,10 +158,10 @@ contract Basesweeper {
             games[gameId].active = true;
             emit GameStarted(gameId);
         } else {
-            // LOSER - Reveal the clicked tile as empty
-            currentGame.clickedMask |= (uint256(1) << pending.tileIndex);
+            // LOSER - Add fee to pool (tile already marked as clicked in click() function)
+            currentGame.pool += FEE;
 
-            emit TileClicked(pending.gameId, pending.tileIndex, pending.player);
+            emit TileClicked(pending.gameId, requestId, pending.player, pending.tileIndex, currentGame.pool);
 
             // Reward the revealer
             (bool sentToRevealer, ) = msg.sender.call{value: REVEAL_REWARD}("");

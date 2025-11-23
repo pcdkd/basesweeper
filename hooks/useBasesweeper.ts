@@ -161,6 +161,15 @@ export function useBasesweeper() {
         }
     }, [isConfirmed, refetchGameState]);
 
+    // Poll game state every 5 seconds to catch any missed updates
+    useEffect(() => {
+        const interval = setInterval(() => {
+            refetchGameState();
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [refetchGameState]);
+
     return {
         gameId,
         gameState,
