@@ -215,4 +215,26 @@ contract Basesweeper {
                block.number >= pc.targetBlock &&
                block.number <= pc.targetBlock + 256;
     }
+
+    /**
+     * @dev Rescue an expired pending click by refunding the player.
+     *      This can be called by anyone when a pending click has passed the 256-block window.
+     *      Prevents permanent fund lock when reveals are missed.
+     * @param requestId The ID of the expired pending click
+     */
+    function rescueExpiredClick(uint256 requestId) external {
+        PendingClick storage pending = pendingClicks[requestId];
+
+        require(!pending.fulfilled, "Already fulfilled");
+        require(block.number > pending.targetBlock + 256, "Not expired yet");
+
+        // Mark as fulfilled to prevent reentrancy
+        pending.fulfilled = true;
+
+        emit ClickRefunded(pending.gameId, pending.tileIndex, pending.player);
+
+        // Refund the fee to the original player
+        (bool sent, ) = pending.player.call{value: FEE}("");
+        require(sent, "Refund failed");
+    }
 }

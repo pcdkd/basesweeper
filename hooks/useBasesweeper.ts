@@ -19,11 +19,14 @@ export function useBasesweeper() {
     // Track current block number
     const { data: blockNumber } = useBlockNumber({ watch: true });
 
-    // Read Game ID
+    // Read Game ID (watch for changes to detect new games)
     const { data: gameId } = useReadContract({
         address: BASESWEEPER_ADDRESS,
         abi: BASESWEEPER_ABI,
         functionName: 'gameId',
+        query: {
+            refetchInterval: 5000, // Poll every 5 seconds
+        }
     });
 
     // Read Game State
@@ -84,15 +87,15 @@ export function useBasesweeper() {
         eventName: 'GameWon',
         onLogs(logs) {
             logs.forEach((log) => {
-                const { gameId: wonGameId } = log.args as { gameId: bigint };
+                const { gameId: wonGameId, requestId } = log.args as {
+                    gameId: bigint;
+                    requestId: bigint;
+                };
 
-                // Remove pending clicks for this game
+                // Remove the specific pending click that was fulfilled
                 setPendingClicks(prev => {
                     const newMap = new Map(prev);
-                    newMap.forEach((click, key) => {
-                        // Remove all pending clicks (game is won)
-                        newMap.delete(key);
-                    });
+                    newMap.delete(requestId);
                     return newMap;
                 });
 
@@ -109,7 +112,31 @@ export function useBasesweeper() {
         eventName: 'TileClicked',
         onLogs(logs) {
             logs.forEach((log) => {
+                const { requestId } = log.args as { requestId: bigint };
+
+                // Remove the specific pending click that was fulfilled
+                setPendingClicks(prev => {
+                    const newMap = new Map(prev);
+                    newMap.delete(requestId);
+                    return newMap;
+                });
+
                 // Refetch game state when tiles are clicked
+                refetchGameState();
+            });
+        },
+    });
+
+    // Watch for ClickRefunded events
+    useWatchContractEvent({
+        address: BASESWEEPER_ADDRESS,
+        abi: BASESWEEPER_ABI,
+        eventName: 'ClickRefunded',
+        onLogs(logs) {
+            logs.forEach((log) => {
+                // When a click is refunded, we need to find and remove it from pending
+                // The event doesn't include requestId, so we'll refetch game state
+                // and the pending clicks will be cleaned up by the auto-reveal logic
                 refetchGameState();
             });
         },
@@ -122,15 +149,16 @@ export function useBasesweeper() {
         pendingClicks.forEach((click, requestId) => {
             // Check if we've reached the target block
             if (blockNumber >= click.targetBlock) {
-                // Auto-reveal this click
-                revealOutcome(Number(requestId));
+                // Check if it's within the 256-block window
+                const expiryBlock = click.targetBlock + 256n;
 
-                // Remove from pending clicks
-                setPendingClicks(prev => {
-                    const newMap = new Map(prev);
-                    newMap.delete(requestId);
-                    return newMap;
-                });
+                if (blockNumber <= expiryBlock) {
+                    // Auto-reveal this click (don't remove from pending - event will do that)
+                    revealOutcome(Number(requestId));
+                } else {
+                    // Expired - try to rescue it
+                    rescueExpiredClick(Number(requestId));
+                }
             }
         });
     }, [blockNumber, pendingClicks]);
@@ -151,6 +179,15 @@ export function useBasesweeper() {
             address: BASESWEEPER_ADDRESS,
             abi: BASESWEEPER_ABI,
             functionName: 'revealOutcome',
+            args: [BigInt(requestId)],
+        });
+    };
+
+    const rescueExpiredClick = (requestId: number) => {
+        writeContract({
+            address: BASESWEEPER_ADDRESS,
+            abi: BASESWEEPER_ABI,
+            functionName: 'rescueExpiredClick',
             args: [BigInt(requestId)],
         });
     };
@@ -179,6 +216,7 @@ export function useBasesweeper() {
         pendingClicks: Array.from(pendingClicks.values()),
         clickTile,
         revealOutcome,
+        rescueExpiredClick,
         isPending: isWritePending || isConfirming,
         isConfirmed,
         hash

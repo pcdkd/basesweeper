@@ -3,12 +3,13 @@ import { useState, useEffect } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import Grid from "../components/Grid";
 import History from "../components/History";
+import Mechanics from "../components/Mechanics";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { injected } from "wagmi/connectors";
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<'game' | 'history'>('game');
+  const [activeTab, setActiveTab] = useState<'game' | 'history' | 'mechanics'>('game');
 
   useEffect(() => {
     setMounted(true);
@@ -32,6 +33,9 @@ export default function Home() {
           <button className="pb-2 px-4 font-medium text-gray-500 hover:text-gray-700">
             History
           </button>
+          <button className="pb-2 px-4 font-medium text-gray-500 hover:text-gray-700">
+            Mechanics
+          </button>
         </div>
         <main className="w-full max-w-2xl bg-white rounded-xl shadow-sm p-6">
           <div className="flex flex-col items-center justify-center p-4">
@@ -46,7 +50,7 @@ export default function Home() {
   return <MountedHome activeTab={activeTab} setActiveTab={setActiveTab} />;
 }
 
-function MountedHome({ activeTab, setActiveTab }: { activeTab: 'game' | 'history', setActiveTab: (tab: 'game' | 'history') => void }) {
+function MountedHome({ activeTab, setActiveTab }: { activeTab: 'game' | 'history' | 'mechanics', setActiveTab: (tab: 'game' | 'history' | 'mechanics') => void }) {
   const { isFrameReady, setFrameReady } = useMiniKit();
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
@@ -100,10 +104,19 @@ function MountedHome({ activeTab, setActiveTab }: { activeTab: 'game' | 'history
         >
           History
         </button>
+        <button
+          className={`pb-2 px-4 font-medium ${activeTab === 'mechanics'
+            ? 'text-[#0052FF] border-b-2 border-[#0052FF]'
+            : 'text-gray-500 hover:text-gray-700'
+            }`}
+          onClick={() => setActiveTab('mechanics')}
+        >
+          Mechanics
+        </button>
       </div>
 
       <main className="w-full max-w-2xl bg-white rounded-xl shadow-sm p-6">
-        {activeTab === 'game' ? <Grid /> : <History />}
+        {activeTab === 'game' ? <Grid /> : activeTab === 'history' ? <History /> : <Mechanics />}
       </main>
     </div>
   );

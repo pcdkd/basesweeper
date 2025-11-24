@@ -273,6 +273,19 @@ export const BASESWEEPER_ABI = [
   },
   {
     "type": "function",
+    "name": "rescueExpiredClick",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "revealOutcome",
     "inputs": [
       {
@@ -435,4 +448,4 @@ export const BASESWEEPER_ABI = [
   }
 ] as const;
 
-export const BASESWEEPER_ADDRESS = "0x8a1b136F4120C064CA9aB2914B6fc0d2b660FE75" as const;
+export const BASESWEEPER_ADDRESS = "0x78C8899921D71CD565f66379FffA082C1AE41cC3" as const;

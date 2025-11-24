@@ -14,7 +14,7 @@ export default createConfig({
       network: "baseSepolia",
       abi: BASESWEEPER_ABI,
       address: BASESWEEPER_ADDRESS,
-      startBlock: 34047281, // Deployment block
+      startBlock: 34115650, // Deployment block
     },
   },
 });
