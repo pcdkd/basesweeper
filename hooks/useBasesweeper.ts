@@ -12,6 +12,9 @@ export function useBasesweeper() {
         player: string
     }>>(new Map());
 
+    // Track which requestIds have already had reveal initiated to prevent duplicate calls
+    const [revealingRequestIds, setRevealingRequestIds] = useState<Set<bigint>>(new Set());
+
     const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
         hash,
     });
@@ -99,6 +102,13 @@ export function useBasesweeper() {
                     return newMap;
                 });
 
+                // Remove from revealing set
+                setRevealingRequestIds(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(requestId);
+                    return newSet;
+                });
+
                 // Refetch game state
                 refetchGameState();
             });
@@ -121,6 +131,13 @@ export function useBasesweeper() {
                     return newMap;
                 });
 
+                // Remove from revealing set
+                setRevealingRequestIds(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(requestId);
+                    return newSet;
+                });
+
                 // Refetch game state when tiles are clicked
                 refetchGameState();
             });
@@ -134,9 +151,31 @@ export function useBasesweeper() {
         eventName: 'ClickRefunded',
         onLogs(logs) {
             logs.forEach((log) => {
-                // When a click is refunded, we need to find and remove it from pending
-                // The event doesn't include requestId, so we'll refetch game state
-                // and the pending clicks will be cleaned up by the auto-reveal logic
+                const { gameId, tileIndex, player } = log.args as {
+                    gameId: bigint;
+                    tileIndex: bigint;
+                    player: string;
+                };
+
+                // Find and remove the corresponding pending click
+                setPendingClicks(prev => {
+                    const newMap = new Map(prev);
+                    // Find requestId that matches this refund
+                    for (const [requestId, click] of newMap.entries()) {
+                        if (click.tileIndex === tileIndex && click.player.toLowerCase() === player.toLowerCase()) {
+                            newMap.delete(requestId);
+                            // Also remove from revealing set
+                            setRevealingRequestIds(prevSet => {
+                                const newSet = new Set(prevSet);
+                                newSet.delete(requestId);
+                                return newSet;
+                            });
+                            break;
+                        }
+                    }
+                    return newMap;
+                });
+
                 refetchGameState();
             });
         },
@@ -147,21 +186,28 @@ export function useBasesweeper() {
         if (!blockNumber) return;
 
         pendingClicks.forEach((click, requestId) => {
+            // Skip if we've already initiated reveal for this requestId
+            if (revealingRequestIds.has(requestId)) return;
+
             // Check if we've reached the target block
             if (blockNumber >= click.targetBlock) {
                 // Check if it's within the 256-block window
                 const expiryBlock = click.targetBlock + 256n;
 
                 if (blockNumber <= expiryBlock) {
+                    // Mark as revealing to prevent duplicate calls
+                    setRevealingRequestIds(prev => new Set(prev).add(requestId));
                     // Auto-reveal this click (don't remove from pending - event will do that)
                     revealOutcome(Number(requestId));
                 } else {
+                    // Mark as revealing to prevent duplicate calls
+                    setRevealingRequestIds(prev => new Set(prev).add(requestId));
                     // Expired - try to rescue it
                     rescueExpiredClick(Number(requestId));
                 }
             }
         });
-    }, [blockNumber, pendingClicks]);
+    }, [blockNumber, pendingClicks, revealingRequestIds]);
 
     const clickTile = (tileIndex: number) => {
         if (!fee) return;
