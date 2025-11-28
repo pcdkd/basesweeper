@@ -72,6 +72,8 @@ export function useBasesweeper() {
                     targetBlock: bigint;
                 };
 
+                console.log(`ClickPending event received - requestId: ${requestId}, tile: ${tileIndex}, targetBlock: ${targetBlock}`);
+
                 // Store pending click
                 setPendingClicks(prev => new Map(prev).set(requestId, {
                     requestId,
@@ -123,11 +125,13 @@ export function useBasesweeper() {
         onLogs(logs) {
             logs.forEach((log) => {
                 const { requestId } = log.args as { requestId: bigint };
+                console.log(`TileClicked event received for requestId: ${requestId}`);
 
                 // Remove the specific pending click that was fulfilled
                 setPendingClicks(prev => {
                     const newMap = new Map(prev);
-                    newMap.delete(requestId);
+                    const deleted = newMap.delete(requestId);
+                    console.log(`Removed pending click ${requestId}: ${deleted}, remaining: ${newMap.size}`);
                     return newMap;
                 });
 
@@ -237,6 +241,43 @@ export function useBasesweeper() {
             args: [BigInt(requestId)],
         });
     };
+
+    // Clean up stale pending clicks by checking contract state
+    // NOTE: Can't use clickedMask alone since tiles are marked clicked before reveal
+    // Instead, periodically check if pending clicks can still be revealed
+    useEffect(() => {
+        if (!blockNumber || pendingClicks.size === 0) return;
+
+        const checkAndCleanup = async () => {
+            const idsToRemove: bigint[] = [];
+
+            for (const [requestId, click] of pendingClicks.entries()) {
+                // If we're past the target block + some buffer, and it's still pending,
+                // something went wrong - clean it up
+                const buffer = 10n; // 10 blocks ~2 minutes
+                if (blockNumber > click.targetBlock + buffer) {
+                    console.log(`Cleaning up stale pending click ${requestId} for tile ${click.tileIndex}`);
+                    idsToRemove.push(requestId);
+                }
+            }
+
+            if (idsToRemove.length > 0) {
+                setPendingClicks(prev => {
+                    const newMap = new Map(prev);
+                    idsToRemove.forEach(id => newMap.delete(id));
+                    return newMap;
+                });
+
+                setRevealingRequestIds(prev => {
+                    const newSet = new Set(prev);
+                    idsToRemove.forEach(id => newSet.delete(id));
+                    return newSet;
+                });
+            }
+        };
+
+        checkAndCleanup();
+    }, [blockNumber, pendingClicks]);
 
     useEffect(() => {
         if (isConfirmed) {
